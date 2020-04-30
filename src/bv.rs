@@ -44,7 +44,8 @@ impl BV {
   }
 
   pub fn rank1(&self, i: usize) -> u32 {
-    todo!()
+    self.large_sum[i / Self::LARGE] + self.small_sum[i / Self::SMALL] as u32 +
+      (i / Self::SMALL * Self::SMALL .. i).filter(|&j| self.array[j]).count() as u32
   }
 }
 
@@ -79,5 +80,11 @@ mod tests {
   fn new_small_sum() {
     let bv = BV::new((0 .. 50).map(|i| i < 20).collect::<BitVec<Lsb0, u32>>().into());
     assert_eq!(bv.small_sum, vec![0, 20]);
+  }
+  #[test]
+  fn rank() {
+    let bv = BV::new(bitbox![Lsb0, u32; 1; BV::LARGE + 1]);
+    assert_eq!(bv.rank1(10), 10);
+    assert_eq!(bv.rank1(1000), 1000);
   }
 }
