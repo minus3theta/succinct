@@ -1,43 +1,57 @@
 use num_integer::Integer;
-use bitvec::prelude::BitBox;
+use bitvec::prelude::{BitBox, Lsb0, BitStore};
 
-type Store = Vec<u32>;
+type Store = BitBox<Lsb0, u32>;
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Hash, Clone)]
 pub struct BV {
-  n: usize,
   array: Store,
-  l_sum: Vec<u32>,
-  s_sum: Vec<u8>,
+  large_sum: Vec<u32>,
+  small_sum: Vec<u16>,
 }
 
 impl BV {
   const LARGE: usize = 64 * 64;
   const SMALL: usize = 32;
+  const S_PER_L: usize = Self::LARGE / Self::SMALL;
 
-  pub fn new(n: usize, array: Store) -> Self {
-    assert_eq!(array.len(), n.div_ceil(&Self::SMALL));
-    let mut l_sum = Vec::new();
-    let mut s_sum = Vec::new();
+  pub fn new(array: Store) -> Self {
+    let raw: &[<u32 as BitStore>::Access] = array.as_total_slice();
+    let mut large_sum = vec![0; raw.len().div_ceil(&Self::S_PER_L)];
+    let mut small_sum = vec![0; raw.len()];
+    let mut current_l_sum = 0;
+    let mut current_s_sum = 0;
+    for (i, x) in raw.iter().enumerate() {
+      let x = x.load(core::sync::atomic::Ordering::Relaxed);
+      let ones = x.count_ones();
+      if i % Self::S_PER_L == 0 {
+        large_sum[i / Self::S_PER_L] = current_l_sum;
+        current_s_sum = 0;
+      }
+      small_sum[i] = current_s_sum;
+      current_s_sum += ones as u16;
+      current_l_sum += ones;
+    }
     BV {
-      n,
       array,
-      l_sum,
-      s_sum,
+      large_sum,
+      small_sum,
     }
   }
 
-  pub fn get(&self, i: usize) -> Option<bool> {
-    if i < self.n {
-      let block = self.array.get(i / Self::SMALL)?;
-      Some((block >> (i % Self::SMALL)) & 1 == 1)
-    } else {
-      None
-    }
+  pub fn get(&self, i: usize) -> Option<&bool> {
+    self.array.get(i)
   }
 
   pub fn rank1(&self, i: usize) -> u32 {
     todo!()
+  }
+}
+
+impl std::ops::Index<usize> for BV {
+  type Output = bool;
+  fn index(&self, i: usize) -> &Self::Output {
+    &self.array[i]
   }
 }
 
@@ -46,15 +60,24 @@ mod tests {
   use bitvec::prelude::*;
   use super::*;
   #[test]
-  fn get_0() {
-    assert_eq!(BV::new(2, vec![2]).get(0), Some(false))
+  fn new_l_size_1() {
+    assert_eq!(BV::new(bitbox![Lsb0, u32; 0]).large_sum.len(), 1);
   }
   #[test]
-  fn get_1() {
-    assert_eq!(BV::new(2, vec![2]).get(1), Some(true))
+  fn new_l_size_large() {
+    assert_eq!(BV::new(bitbox![Lsb0, u32; 0; BV::LARGE]).large_sum.len(), 1);
   }
   #[test]
-  fn get_outofbounds() {
-    assert_eq!(BV::new(2, vec![2]).get(2), None)
+  fn new_l_size_large_plus_1() {
+    assert_eq!(BV::new(bitbox![Lsb0, u32; 1; BV::LARGE + 1]).large_sum.len(), 2);
+  }
+  #[test]
+  fn new_large_sum() {
+    assert_eq!(BV::new(bitbox![Lsb0, u32; 1; BV::LARGE + 1]).large_sum, vec![0, 4096]);
+  }
+  #[test]
+  fn new_small_sum() {
+    let bv = BV::new((0 .. 50).map(|i| i < 20).collect::<BitVec<Lsb0, u32>>().into());
+    assert_eq!(bv.small_sum, vec![0, 20]);
   }
 }
