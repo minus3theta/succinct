@@ -1,0 +1,12 @@
+[package]
+name = "succinct"
+version = "0.1.0"
+authors = ["minus3theta <yone_j_synthesis@yahoo.co.jp>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+num-integer = "0.1.42"
+bitvec = "0.17.4"
