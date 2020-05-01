@@ -49,10 +49,18 @@ impl <'a> BV<'a> {
       (i / Self::SMALL * Self::SMALL .. i).filter(|&j| self.array[j]).count() as u32
   }
 
+  pub fn rank0(&self, i: usize) -> u32 {
+    i as u32 - self.rank1(i)
+  }
+
   pub fn rank1_with_table(&self, i: usize, table: &Vec<Vec<u8>>) -> u32 {
     let raw = self.array.as_total_slice()[i / Self::S_PER_L].load(core::sync::atomic::Ordering::Relaxed);
     self.large_sum[i / Self::LARGE] + self.small_sum[i / Self::SMALL] as u32 +
       table[raw as usize][i % Self::SMALL] as u32
+  }
+
+  pub fn rank0_with_table(&self, i: usize, table: &Vec<Vec<u8>>) -> u32 {
+    i as u32 - self.rank1_with_table(i, table)
   }
 
   pub fn rank_lookup_table() -> Vec<Vec<u8>> {
