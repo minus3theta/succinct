@@ -1,5 +1,5 @@
+use bitvec::prelude::{BitSlice, BitStore, Lsb0};
 use num_integer::Integer;
-use bitvec::prelude::{BitSlice, Lsb0, BitStore};
 
 type StoreUnit = u16;
 type Store = BitSlice<Lsb0, StoreUnit>;
@@ -11,7 +11,7 @@ pub struct BV<'a> {
   small_sum: Vec<u16>,
 }
 
-impl <'a> BV<'a> {
+impl<'a> BV<'a> {
   const SMALL: usize = StoreUnit::BITS as usize;
   const LARGE: usize = 4 * Self::SMALL * Self::SMALL;
   const S_PER_L: usize = Self::LARGE / Self::SMALL;
@@ -45,8 +45,11 @@ impl <'a> BV<'a> {
   }
 
   pub fn rank1(&self, i: usize) -> u32 {
-    self.large_sum[i / Self::LARGE] + self.small_sum[i / Self::SMALL] as u32 +
-      (i / Self::SMALL * Self::SMALL .. i).filter(|&j| self.array[j]).count() as u32
+    self.large_sum[i / Self::LARGE]
+      + self.small_sum[i / Self::SMALL] as u32
+      + (i / Self::SMALL * Self::SMALL..i)
+        .filter(|&j| self.array[j])
+        .count() as u32
   }
 
   pub fn rank0(&self, i: usize) -> u32 {
@@ -54,9 +57,11 @@ impl <'a> BV<'a> {
   }
 
   pub fn rank1_with_table(&self, i: usize, table: &Vec<Vec<u8>>) -> u32 {
-    let raw = self.array.as_total_slice()[i / Self::S_PER_L].load(core::sync::atomic::Ordering::Relaxed);
-    self.large_sum[i / Self::LARGE] + self.small_sum[i / Self::SMALL] as u32 +
-      table[raw as usize][i % Self::SMALL] as u32
+    let raw =
+      self.array.as_total_slice()[i / Self::S_PER_L].load(core::sync::atomic::Ordering::Relaxed);
+    self.large_sum[i / Self::LARGE]
+      + self.small_sum[i / Self::SMALL] as u32
+      + table[raw as usize][i % Self::SMALL] as u32
   }
 
   pub fn rank0_with_table(&self, i: usize, table: &Vec<Vec<u8>>) -> u32 {
@@ -87,8 +92,8 @@ impl std::ops::Index<usize> for BV<'_> {
 
 #[cfg(test)]
 mod tests {
-  use bitvec::prelude::*;
   use super::*;
+  use bitvec::prelude::*;
   #[test]
   fn new_l_size_1() {
     assert_eq!(BV::new(bits![Lsb0, u16; 0]).large_sum.len(), 1);
@@ -99,15 +104,21 @@ mod tests {
   }
   #[test]
   fn new_l_size_large_plus_1() {
-    assert_eq!(BV::new(bits![Lsb0, u16; 1; BV::LARGE + 1]).large_sum.len(), 2);
+    assert_eq!(
+      BV::new(bits![Lsb0, u16; 1; BV::LARGE + 1]).large_sum.len(),
+      2
+    );
   }
   #[test]
   fn new_large_sum() {
-    assert_eq!(BV::new(bits![Lsb0, u16; 1; BV::LARGE + 1]).large_sum, vec![0, 1024]);
+    assert_eq!(
+      BV::new(bits![Lsb0, u16; 1; BV::LARGE + 1]).large_sum,
+      vec![0, 1024]
+    );
   }
   #[test]
   fn new_small_sum() {
-    let v = (0 .. 50).map(|i| i < 20).collect::<BitVec<Lsb0, u16>>();
+    let v = (0..50).map(|i| i < 20).collect::<BitVec<Lsb0, u16>>();
     let bv = BV::new(&v);
     assert_eq!(bv.small_sum, vec![0, 16, 20, 20]);
   }
