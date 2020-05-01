@@ -1,22 +1,22 @@
 use num_integer::Integer;
-use bitvec::prelude::{BitBox, Lsb0, BitStore};
+use bitvec::prelude::{BitSlice, Lsb0, BitStore};
 
 type StoreUnit = u16;
-type Store = BitBox<Lsb0, StoreUnit>;
+type Store = BitSlice<Lsb0, StoreUnit>;
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Hash, Clone)]
-pub struct BV {
-  array: Store,
+pub struct BV<'a> {
+  array: &'a Store,
   large_sum: Vec<u32>,
   small_sum: Vec<u16>,
 }
 
-impl BV {
+impl <'a> BV<'a> {
   const SMALL: usize = StoreUnit::BITS as usize;
   const LARGE: usize = 4 * Self::SMALL * Self::SMALL;
   const S_PER_L: usize = Self::LARGE / Self::SMALL;
 
-  pub fn new(array: Store) -> Self {
+  pub fn new(array: &'a Store) -> Self {
     let raw: &[<StoreUnit as BitStore>::Access] = array.as_total_slice();
     let mut large_sum = vec![0; raw.len().div_ceil(&Self::S_PER_L)];
     let mut small_sum = vec![0; raw.len()];
@@ -70,7 +70,7 @@ impl BV {
   }
 }
 
-impl std::ops::Index<usize> for BV {
+impl std::ops::Index<usize> for BV<'_> {
   type Output = bool;
   fn index(&self, i: usize) -> &Self::Output {
     &self.array[i]
@@ -83,34 +83,35 @@ mod tests {
   use super::*;
   #[test]
   fn new_l_size_1() {
-    assert_eq!(BV::new(bitbox![Lsb0, u16; 0]).large_sum.len(), 1);
+    assert_eq!(BV::new(bits![Lsb0, u16; 0]).large_sum.len(), 1);
   }
   #[test]
   fn new_l_size_large() {
-    assert_eq!(BV::new(bitbox![Lsb0, u16; 0; BV::LARGE]).large_sum.len(), 1);
+    assert_eq!(BV::new(bits![Lsb0, u16; 0; BV::LARGE]).large_sum.len(), 1);
   }
   #[test]
   fn new_l_size_large_plus_1() {
-    assert_eq!(BV::new(bitbox![Lsb0, u16; 1; BV::LARGE + 1]).large_sum.len(), 2);
+    assert_eq!(BV::new(bits![Lsb0, u16; 1; BV::LARGE + 1]).large_sum.len(), 2);
   }
   #[test]
   fn new_large_sum() {
-    assert_eq!(BV::new(bitbox![Lsb0, u16; 1; BV::LARGE + 1]).large_sum, vec![0, 1024]);
+    assert_eq!(BV::new(bits![Lsb0, u16; 1; BV::LARGE + 1]).large_sum, vec![0, 1024]);
   }
   #[test]
   fn new_small_sum() {
-    let bv = BV::new((0 .. 50).map(|i| i < 20).collect::<BitVec<Lsb0, u16>>().into());
+    let v = (0 .. 50).map(|i| i < 20).collect::<BitVec<Lsb0, u16>>();
+    let bv = BV::new(&v);
     assert_eq!(bv.small_sum, vec![0, 16, 20, 20]);
   }
   #[test]
   fn rank() {
-    let bv = BV::new(bitbox![Lsb0, u16; 1; BV::LARGE + 1]);
+    let bv = BV::new(bits![Lsb0, u16; 1; BV::LARGE + 1]);
     assert_eq!(bv.rank1(10), 10);
     assert_eq!(bv.rank1(1000), 1000);
   }
   #[test]
   fn rank_with_table() {
-    let bv = BV::new(bitbox![Lsb0, u16; 1; BV::LARGE + 1]);
+    let bv = BV::new(bits![Lsb0, u16; 1; BV::LARGE + 1]);
     let table = BV::rank_lookup_table();
     assert_eq!(bv.rank1_with_table(10, &table), 10);
     assert_eq!(bv.rank1_with_table(1000, &table), 1000);
